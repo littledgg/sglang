@@ -16,7 +16,7 @@ with your GitHub personal access token.
 
 import argparse
 import json
-import re
+import os
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -128,7 +128,6 @@ class PRAnalyzer:
                 req = request.Request(url)
                 req.add_header("Accept", "application/vnd.github.v3+json")
                 # Add token if available via environment variable
-                import os
                 token = os.environ.get("GITHUB_TOKEN")
                 if token:
                     req.add_header("Authorization", f"token {token}")
