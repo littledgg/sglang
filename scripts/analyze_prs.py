@@ -19,7 +19,7 @@ import json
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from urllib import request
 from urllib.error import HTTPError, URLError
@@ -105,7 +105,7 @@ class PRAnalyzer:
         Returns:
             List of PR dictionaries
         """
-        since_date = datetime.now() - timedelta(days=days)
+        since_date = datetime.now(timezone.utc) - timedelta(days=days)
         all_prs = []
         page = 1
 
@@ -130,7 +130,7 @@ class PRAnalyzer:
                 # Add token if available via environment variable
                 token = os.environ.get("GITHUB_TOKEN")
                 if token:
-                    req.add_header("Authorization", f"token {token}")
+                    req.add_header("Authorization", f"Bearer {token}")
 
                 with request.urlopen(req, timeout=30) as response:
                     prs = json.loads(response.read().decode())
@@ -142,9 +142,11 @@ class PRAnalyzer:
                 # Filter PRs by date
                 filtered_prs = []
                 for pr in prs:
-                    created_at = datetime.strptime(
-                        pr["created_at"], "%Y-%m-%dT%H:%M:%SZ"
-                    )
+                    created_at_str = pr["created_at"]
+                    # Handle both 'Z' and timezone offset formats
+                    if created_at_str.endswith('Z'):
+                        created_at_str = created_at_str[:-1] + '+00:00'
+                    created_at = datetime.fromisoformat(created_at_str)
                     if created_at >= since_date:
                         filtered_prs.append(pr)
                     else:
@@ -167,7 +169,10 @@ class PRAnalyzer:
                 page += 1
 
             except HTTPError as e:
-                print(f"HTTP Error: {e.code} - {e.reason}", file=sys.stderr)
+                print(
+                    f"Failed to fetch PRs from GitHub API: HTTP Error {e.code} - {e.reason}",
+                    file=sys.stderr,
+                )
                 if e.code == 403:
                     print(
                         "Rate limit exceeded. Please set GITHUB_TOKEN environment "
@@ -176,7 +181,10 @@ class PRAnalyzer:
                     )
                 break
             except URLError as e:
-                print(f"URL Error: {e.reason}", file=sys.stderr)
+                print(
+                    f"Failed to connect to GitHub API: {e.reason}",
+                    file=sys.stderr,
+                )
                 break
             except Exception as e:
                 print(f"Error fetching PRs: {e}", file=sys.stderr)
